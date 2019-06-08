@@ -1,0 +1,254 @@
+function [err] = error1 (Hi, uerr, u0) % voy a darle h y me va a dar el error del ultimo
+  %trabajo solo con uno de los dos
+  err=zeros(1,size(Hi)(2));
+  
+  for i=1:size(Hi)(2)
+    
+    err(i)=sqrt( (uerr(i,1)-u0(1))^2 + (uerr(i,2)-u0(2))^2 );
+    
+  endfor
+  
+  loglog(Hi,err);
+  
+  
+endfunction
+
+
+# Funcion para calcular las derivadas de las funciones incognita,
+# a partir de un estado de las variables y del tiempo
+
+
+
+# Funcion que calcula la solucion completa,
+# a partir de la funcion derivada y las condiciones iniciales
+# El vector t indica los puntos en los que se calculara la solucion
+# func: string con el nombre de la funcion
+# u0: vector (fila) con las condiciones iniciales
+# t: vector (columna) con los tiempos
+function u = globalmethod (func, func2, u0, t, th, M1G, M2G)
+  
+    
+  
+  n = size(t)(2); # Cantidad de puntos en los que se requiere la solucion
+  m = size(u0)(2);# Cantidad de funciones incognita
+  u=zeros(n,m);   # matriz solucion
+  u(1,:) = u0;   # Primer punto: condicion inicial
+# Recorremos los siguientes puntos
+
+for i = 2:n
+  %disp(i)
+  # Evaluamos la funcion func, pasandole como argumentos el punto anterior
+  # y el tiempo anterior
+  # Calculamos el paso de tiempo (Tactual-Tanterior)
+  h = t(i)-t(i-1);
+  #Meto2 theta: avance "h" con la funcion evaluada en el tiempo previo
+  u(i,:) = theta(func2,u(i-1,:),h,th, M1G, M2G);
+  
+  # Siguiente punto
+endfor
+endfunction
+# Carga la condicion inicial
+#u0 = [1 0 ..];
+# Evaluaremos en "n" puntos equiespaciados entre Tini y Tfin
+#t=linspace(Tini, Tfin, n);
+# Llamamos al integrador (ver tambien funcion "lsode" de octave)
+#u = euler("myf", u0, t);
+function [yn1]=theta(func,yn,h,th,M1G,M2G)
+  
+  
+  if (th==0)
+    yn1=yn+h*feval(func,yn,M1G,M2G);
+  else
+    
+    yn1=yn;
+    tol=10^-10;
+    maxit=10000;
+    err=1;
+    i=0;
+    while(err>tol && i<maxit)
+      aux=yn1;
+      yn1=yn+h*(th*feval(func,yn1,M1G,M2G)+(1-th)*feval(func,yn,M1G,M2G));
+      err=norm(yn1-aux);
+      i=i+1;
+    endwhile
+    
+  endif
+  
+endfunction
+function [yn1,cont2]=thetaux(func,yn,h,th)
+  
+  if (th==0)
+    yn1=yn+h*feval(func,yn,4,4);
+  else
+    
+    yn1=yn;
+    tol=10^-10;
+    maxit=10000;
+    err=1;
+    i=0;
+    while(err>tol && i<maxit)
+      aux=yn1;
+      yn1=yn+h*(th*feval(func,yn1,4,4)+(1-th)*feval(func,yn,4,4));
+      err=norm(yn1-aux);
+      i=i+1;
+    endwhile
+    
+  endif
+
+endfunction
+function [uerr] =  ultimos(H, func, func2, u0, th, M1G, M2G)
+  
+  uerr=zeros(size(H)(2),size(u0)(2));
+  
+  for i=1:size(H)(2)
+    
+    t = linspace(0, 2*pi, H(i));
+    
+    u = globalmethod (func, func2, u0, t, th, M1G, M2G);
+    
+    uerr(i,:) = u(size(u)(1),:);
+    %disp(u);
+  endfor
+  
+  
+endfunction
+function [uerrL] =  ultimoslsode(H,func,u0)
+  
+  uerrL=zeros(size(H)(2),size(u0)(2));
+  
+  
+  for i=1:size(H)(2)
+    
+    t = linspace(0, 2*pi, H(i));
+    
+    u = lsode(func, u0, t);
+    disp(i);
+    uerrL(i,:) = u(size(u)(1),:);
+
+  endfor
+  
+  
+endfunction
+%  lo del paso de tiempo
+
+function [tiempos,cont] = costo(H,u0)
+  cont=zeros(4, size(H)(2));
+  disp(cont);
+  tiempos=zeros(4,size(H)(2));
+  n = size(tiempos)(2);
+  % EE, CN, EI, lsode
+  global cn=0;
+  for i=1:4
+    
+      if (i<4)
+        u=zeros(n,8);
+    
+        u(1,:) = u0;
+      for j=1:n
+              t=linspace(0,2*pi,H(j));
+              tic;
+        for k=2:size(t)(2)
+          
+          h = t(k)-t(k-1);
+          u(k,:) = thetaux("derivadauxiliar", u(k-1,:), h, 0.5*(i-1));
+          
+        endfor
+        tiempos(i,j)=toc;
+        cont(i,j)=cn;
+        cn=0;
+      endfor
+      
+      
+      else
+    
+    u=zeros(n,8);
+    u(1,:) = u0;
+    
+    for j=1:n
+          t=linspace(0,2*pi,H(j));
+          
+          tic;
+          
+          u = lsode("derivadauxiliar",u0,t);
+          
+          tiempos(i,j)=toc;
+          
+          cont(i,j)=cn;
+          cn=0;
+    endfor
+    
+    #
+    
+  endif 
+  
+endfor
+endfunction
+function [ydot]=derivada(y,M1G,M2G)
+  
+  norma=sqrt((y(5)-y(1))^2+(y(6)-y(2))^2);
+  
+  ydot=zeros(1,8);
+  
+  ydot(1)=y(3);
+  ydot(2)=y(4);
+  ydot(5)=y(7);
+  ydot(6)=y(8);
+  
+  ydot(3)=M2G*(y(5)-y(1))/(norma^3);
+  ydot(4)=M2G*(y(6)-y(2))/(norma^3);
+  
+  if M1G==M2G
+  
+    ydot(7)=-ydot(3);
+    ydot(8)=-ydot(4);
+    else
+      ydot(7)=M2G*(y(1)-y(5))/(norma^3);
+      ydot(8)=M2G*(y(2)-y(6))/(norma^3);
+  endif
+endfunction
+function [ydot]=derivadatest(y,M1G,M2G)
+  
+  norma=sqrt((y(5)-y(1))^2+(y(6)-y(2))^2);
+  
+  ydot=zeros(1,8);
+  
+  ydot(1)=y(3);
+  ydot(2)=y(4);
+  ydot(5)=y(7);
+  ydot(6)=y(8);
+  
+  ydot(3)=M2G*(y(5)-y(1))/(norma^3);
+  ydot(4)=M2G*(y(6)-y(2))/(norma^3);
+  
+  if M1G==M2G
+  
+    ydot(7)=-ydot(3);
+    ydot(8)=-ydot(4);
+    else
+      ydot(7)=M2G*(y(1)-y(5))/(norma^3);
+      ydot(8)=M2G*(y(2)-y(6))/(norma^3);
+  end
+end
+function [ydot]=derivadauxiliar(u0,t)
+  global cn;
+  cn+=1;
+  ydot=derivada(u0,4,4);
+  
+endfunction
+
+function [energy] = energia(u, M1G, M2G)
+  %realmente esto es energia por G
+  
+  n=size(u)(1)
+  energy = zeros(1,n)
+  for i=1:n
+      
+      
+      energy(i) = 0.5*(M1G*((u(i,3))^2+(u(i,4))^2)+M2G*((u(i,7))^2+(u(i,8))^2))-(M1G*M2G/sqrt(((u(i,2)-u(i,6))^2)+(((u(i,1)-u(i,5))^2))));
+      
+    
+  endfor  
+  
+endfunction
+
+                                %                x1 y1 vx1 vy1 x2 y2 vx2 vy2
